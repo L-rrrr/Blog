@@ -1,0 +1,13 @@
+node_modules/
+.env
+dist
+build
+.prisma
+
+simple_blog_cms_fullstack_project_plan.md
+
+
+
+
+
+
