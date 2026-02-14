@@ -1,0 +1,31 @@
+-- Start of SQL
+CREATE TYPE role AS ENUM ('USER','ADMIN');
+CREATE TABLE users (
+id SERIAL PRIMARY KEY,
+email TEXT UNIQUE NOT NULL,
+name TEXT,
+password TEXT NOT NULL,
+role role NOT NULL DEFAULT 'USER',
+created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE posts (
+id SERIAL PRIMARY KEY,
+title TEXT NOT NULL,
+content TEXT,
+published BOOLEAN NOT NULL DEFAULT false,
+author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE comments (
+id SERIAL PRIMARY KEY,
+content TEXT NOT NULL,
+post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX ON posts (created_at);
+CREATE INDEX ON comments (created_at);
+-- End of SQL
