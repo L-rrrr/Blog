@@ -1,4 +1,3 @@
--- Start of SQL
 CREATE TYPE role AS ENUM ('USER','ADMIN');
 CREATE TABLE users (
 id SERIAL PRIMARY KEY,
@@ -28,4 +27,3 @@ created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 
 CREATE INDEX ON posts (created_at);
 CREATE INDEX ON comments (created_at);
--- End of SQL
