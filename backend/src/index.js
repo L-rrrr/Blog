@@ -1,5 +1,6 @@
 const express = require('express')
 const bcrypt = require('bcrypt')
+const jwt = require('jsonwebtoken')
 const db = require('./db')
 const cors = require('cors')
 require('dotenv').config()
@@ -50,6 +51,42 @@ app.post('/auth/register', async (req, res, next) => {
     next(err)
   }
 })
+
+// Login endpoint
+app.post('./auth/login', async (req, res, next) => {
+  try {
+    const { email, password } = req.body
+    if (!email || !pasword) {
+      return res.status(400).json({ error: 'email and password required' })
+    }
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: 'invalid email'})
+    }
+
+    const result = await db.query('SELECT id, email,name, password, role FROM users WHERE email = $1', [email])
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'email does not exist' })
+    }
+    
+    const user = result.rows[0]
+    const match = await bcrypt.compare(password, user.password)
+    if (!match) {
+      return res.status(400).json({ error: 'incorrect password'})
+    }
+
+    const payload = {
+      userId: user.id, role: user.role, email: user.email
+    }
+    const secret = process.env.JWT_SECRET || 'default-secret'
+    const expiresIn = process.env.JWT_EXPIRES || '1h'
+    const token = jwt.sign(payload, secret, { expiresIn })
+
+    res.json({ token, user: {id: user.id, email: user.email, name: user.name, role: user.role } })
+  } catch (e) {
+    next(e)
+  }
+})
+
 
 // Basic error handler
 app.use((err, req, res, next) => {
