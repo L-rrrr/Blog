@@ -125,6 +125,138 @@ app.get('/auth/me', authenticateToken, async (req, res, next) => {
   }
 })
 
+
+// Public: list published posts
+app.get('/posts', async (req, res, next) => {
+  try {
+    const q = `
+      SELECT p.id, p.title, p.content, p.published, p.author_id, u.name AS author_name, p.created_at
+      FROM posts p
+      LEFT JOIN users u ON p.author_id = u.id
+      WHERE p.published = true
+      ORDER BY p.created_at DESC
+    `
+    const result = await db.query(q)
+    res.json({ posts: result.rows })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// Get single post. If unpublished, allow only author or admin.
+app.get('/posts/:id', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' })
+
+    const q = `
+      SELECT p.id, p.title, p.content, p.published, p.author_id, u.name AS author_name, p.created_at
+      FROM posts p
+      LEFT JOIN users u ON p.author_id = u.id
+      WHERE p.id = $1
+      LIMIT 1
+    `
+    const result = await db.query(q, [id])
+    if (result.rows.length === 0) return res.status(404).json({ error: 'post not found' })
+
+    const post = result.rows[0]
+    if (post.published) return res.json({ post })
+
+    // Unpublished: require token and check ownership/role
+    const authHeader = req.headers.authorization
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+    if (!token) return res.status(403).json({ error: 'post not published' })
+
+    try {
+      const payload = jwt.verify(token, process.env.JWT_SECRET)
+      const isOwner = payload.userId === post.author_id
+      const isAdmin = payload.role === 'ADMIN'
+      if (isOwner || isAdmin) return res.json({ post })
+      return res.status(403).json({ error: 'forbidden' })
+    } catch (err) {
+      return res.status(401).json({ error: 'invalid token' })
+    }
+  } catch (err) {
+    next(err)
+  }
+})
+
+// Create a new post (protected)
+app.post('/posts', authenticateToken, async (req, res, next) => {
+  try {
+    const { title, content } = req.body
+    if (!title || typeof title !== 'string') return res.status(400).json({ error: 'title is required' })
+
+    // Only admins may set published on creation; regular users create drafts
+    const published = req.body.published === true && req.user.role === 'ADMIN'
+    const authorId = req.user.userId
+
+    const q = `
+      INSERT INTO posts (title, content, published, author_id)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id, title, content, published, author_id, created_at
+    `
+    const result = await db.query(q, [title, content || null, published, authorId])
+    const post = result.rows[0]
+    post.author_name = req.user.name || null
+    res.status(201).json({ post })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// Update a post (author only unless admin)
+app.put('/posts/:id', authenticateToken, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' })
+
+    // Check existing post
+    const existing = await db.query('SELECT id, author_id, published, title, content FROM posts WHERE id = $1', [id])
+    if (existing.rows.length === 0) return res.status(404).json({ error: 'post not found' })
+    const postRow = existing.rows[0]
+
+    const isOwner = req.user.userId === postRow.author_id
+    const isAdmin = req.user.role === 'ADMIN'
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'forbidden' })
+
+    const { title, content } = req.body
+    // Only admin can change published flag
+    const published = typeof req.body.published === 'boolean' && isAdmin ? req.body.published : postRow.published
+
+    const q = `
+      UPDATE posts SET title = $1, content = $2, published = $3
+      WHERE id = $4
+      RETURNING id, title, content, published, author_id, created_at
+    `
+    const result = await db.query(q, [title || postRow.title, content || postRow.content, published, id])
+    res.json({ post: result.rows[0] })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// Delete a post (author or admin)
+app.delete('/posts/:id', authenticateToken, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' })
+
+    const existing = await db.query('SELECT id, author_id FROM posts WHERE id = $1', [id])
+    if (existing.rows.length === 0) return res.status(404).json({ error: 'post not found' })
+    const postRow = existing.rows[0]
+
+    const isOwner = req.user.userId === postRow.author_id
+    const isAdmin = req.user.role === 'ADMIN'
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'forbidden' })
+
+    await db.query('DELETE FROM posts WHERE id = $1', [id])
+    res.status(200).json({ message: 'post deleted' })
+  } catch (err) {
+    next(err)
+  }
+})
+
 // Basic error handler
 app.use((err, req, res, next) => {
   console.error(err)
