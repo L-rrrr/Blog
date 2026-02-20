@@ -53,37 +53,47 @@ app.post('/auth/register', async (req, res, next) => {
 })
 
 // Login endpoint
-app.post('./auth/login', async (req, res, next) => {
+app.post('/auth/login', async (req, res, next) => {
   try {
     const { email, password } = req.body
-    if (!email || !pasword) {
+    if (!email || !password) {
       return res.status(400).json({ error: 'email and password required' })
     }
     if (!isValidEmail(email)) {
-      return res.status(400).json({ error: 'invalid email'})
+      return res.status(400).json({ error: 'invalid email' })
     }
 
-    const result = await db.query('SELECT id, email,name, password, role FROM users WHERE email = $1', [email])
+    const result = await db.query('SELECT id, email, name, password, role FROM users WHERE email = $1', [email])
     if (result.rows.length === 0) {
-      return res.status(400).json({ error: 'email does not exist' })
+      return res.status(401).json({ error: 'email does not exist' })
     }
-    
+
     const user = result.rows[0]
     const match = await bcrypt.compare(password, user.password)
     if (!match) {
-      return res.status(400).json({ error: 'incorrect password'})
+      return res.status(400).json({ error: 'incorrect password' })
     }
 
-    const payload = {
-      userId: user.id, role: user.role, email: user.email
-    }
-    const secret = process.env.JWT_SECRET || 'default-secret'
+    const payload = { userId: user.id, role: user.role, email: user.email }
+    const secret = process.env.JWT_SECRET || 'please-change-this-secret'
     const expiresIn = process.env.JWT_EXPIRES || '1h'
     const token = jwt.sign(payload, secret, { expiresIn })
 
-    res.json({ token, user: {id: user.id, email: user.email, name: user.name, role: user.role } })
-  } catch (e) {
-    next(e)
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role } })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// Protected route: return current user (requires valid JWT)
+const { authenticateToken } = require('./middleware/auth')
+app.get('/auth/me', authenticateToken, async (req, res, next) => {
+  try {
+    const result = await db.query('SELECT id, email, name, role, created_at FROM users WHERE id = $1', [req.user.userId])
+    if (result.rows.length === 0) return res.status(404).json({ error: 'user not found' })
+    res.json({ user: result.rows[0] })
+  } catch (err) {
+    next(err)
   }
 })
 
