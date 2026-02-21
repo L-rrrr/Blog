@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken')
 
-function authenticateToken(req, res, next) {
+async function authenticateToken(req, res, next) {
   const authHeader = req.headers.authorization
   const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
   if (!token) return res.status(401).json({ error: 'token missing' })
@@ -8,7 +8,8 @@ function authenticateToken(req, res, next) {
   if (!secret) return res.status(500).json({ error: 'server misconfiguration' })
   try {
     const payload = jwt.verify(token, secret)
-    req.user = payload
+    const result = await require('../db').query('SELECT id, email, name, role FROM users WHERE id=$1', [payload.userId])
+    req.user = result.rows[0] || payload
     next()
   } catch (err) {
     return res.status(401).json({ error: 'invalid token' })

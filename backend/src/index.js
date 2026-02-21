@@ -14,6 +14,7 @@ if (!process.env.JWT_SECRET) {
 
 const app = express()
 const PORT = process.env.PORT || 4000
+app.use(express.json())
 
 // Tighten CORS: allow only configured origins (comma-separated) or localhost Vite default
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(',').map(s => s.trim())
@@ -114,7 +115,7 @@ const authLimiter = rateLimit({
 app.use('/auth', authLimiter)
 
 // Protected route: return current user (requires valid JWT)
-const { authenticateToken } = require('./middleware/auth')
+const { authenticateToken, authorizeRole } = require('./middleware/auth')
 app.get('/auth/me', authenticateToken, async (req, res, next) => {
   try {
     const result = await db.query('SELECT id, email, name, role, created_at FROM users WHERE id = $1', [req.user.userId])
@@ -257,11 +258,61 @@ app.delete('/posts/:id', authenticateToken, async (req, res, next) => {
   }
 })
 
+// Create a comment on a post (authenticated)
+app.post('/comments', authenticateToken, async (req, res, next) => {
+  try {
+    const { postId, content } = req.body
+    const parsedPostId = parseInt(postId, 10)
+    if (Number.isNaN(parsedPostId)) return res.status(400).json({ error: 'invalid postId' })
+    if (!content || typeof content !== 'string') return res.status(400).json({ error: 'content required' })
+
+    // Ensure post exists
+    const postCheck = await db.query('SELECT id FROM posts WHERE id = $1', [parsedPostId])
+    if (postCheck.rows.length === 0) return res.status(404).json({ error: 'post not found' })
+
+    const q = `
+      INSERT INTO comments (content, post_id, author_id)
+      VALUES ($1, $2, $3)
+      RETURNING id, content, post_id, author_id, created_at
+    `
+    const result = await db.query(q, [content, parsedPostId, req.user.userId])
+    const comment = result.rows[0]
+    comment.author_name = req.user.name || null
+    res.status(201).json({ comment })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// Delete a comment (author or admin)
+app.delete('/comments/:id', authenticateToken, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' })
+
+    const existing = await db.query('SELECT id, author_id FROM comments WHERE id = $1', [id])
+    if (existing.rows.length === 0) return res.status(404).json({ error: 'comment not found' })
+    const commentRow = existing.rows[0]
+
+    const isOwner = req.user.userId === commentRow.author_id
+    const isAdmin = req.user.role === 'ADMIN'
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'forbidden' })
+
+    await db.query('DELETE FROM comments WHERE id = $1', [id])
+    res.status(200).json({ message: 'comment deleted' })
+  } catch (err) {
+    next(err)
+  }
+})
+
 // Basic error handler
 app.use((err, req, res, next) => {
-  console.error(err)
+  console.error(err && err.stack ? err.stack : err)
   // if it's a CORS error, return 403
   if (err && err.message && err.message.startsWith('CORS:')) return res.status(403).json({ error: err.message })
+  if (process.env.NODE_ENV !== 'production') {
+    return res.status(500).json({ error: 'internal server error', details: err && (err.stack || err.message) })
+  }
   res.status(500).json({ error: 'internal server error' })
 })
 
