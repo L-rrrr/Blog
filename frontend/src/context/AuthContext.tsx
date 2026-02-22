@@ -31,7 +31,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [token])
 
-  const setToken = (t: string | null) => setTokenState(t)
+  const setToken = (t: string | null) => {
+    // update state
+    setTokenState(t)
+    // also apply immediately to axios defaults and localStorage so requests made
+    // immediately after setToken have the Authorization header available
+    try {
+      if (t) {
+        localStorage.setItem('token', t)
+        api.defaults.headers.common['Authorization'] = `Bearer ${t}`
+      } else {
+        localStorage.removeItem('token')
+        delete api.defaults.headers.common['Authorization']
+      }
+    } catch (err) {
+      // ignore storage errors
+    }
+  }
 
   const logout = () => {
     setTokenState(null)

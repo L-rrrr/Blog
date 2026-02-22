@@ -127,7 +127,8 @@ app.use('/auth', authLimiter)
 const { authenticateToken, authorizeRole } = require('./middleware/auth')
 app.get('/auth/me', authenticateToken, async (req, res, next) => {
   try {
-    const result = await db.query('SELECT id, email, name, role, created_at FROM users WHERE id = $1', [req.user.userId])
+    const uid = req.user && (req.user.id ?? req.user.userId)
+    const result = await db.query('SELECT id, email, name, role, created_at FROM users WHERE id = $1', [uid])
     if (result.rows.length === 0) return next(new AppError('user not found', 404, 'USER_NOT_FOUND'))
     res.json({ user: result.rows[0] })
   } catch (err) {
@@ -199,7 +200,7 @@ app.post('/posts', authenticateToken, async (req, res, next) => {
 
     // Only admins may set published on creation; regular users create drafts
     const published = req.body.published === true && req.user.role === 'ADMIN'
-    const authorId = req.user.userId
+    const authorId = req.user && (req.user.id ?? req.user.userId)
 
     const q = `
       INSERT INTO posts (title, content, published, author_id)
@@ -226,7 +227,7 @@ app.put('/posts/:id', authenticateToken, async (req, res, next) => {
     if (existing.rows.length === 0) return next(new AppError('post not found', 404, 'POST_NOT_FOUND'))
     const postRow = existing.rows[0]
 
-    const isOwner = req.user.userId === postRow.author_id
+    const isOwner = (req.user && (req.user.id ?? req.user.userId)) === postRow.author_id
     const isAdmin = req.user.role === 'ADMIN'
     if (!isOwner && !isAdmin) return next(new AppError('forbidden', 403, 'FORBIDDEN'))
 
@@ -256,7 +257,7 @@ app.delete('/posts/:id', authenticateToken, async (req, res, next) => {
     if (existing.rows.length === 0) return next(new AppError('post not found', 404, 'POST_NOT_FOUND'))
     const postRow = existing.rows[0]
 
-    const isOwner = req.user.userId === postRow.author_id
+    const isOwner = (req.user && (req.user.id ?? req.user.userId)) === postRow.author_id
     const isAdmin = req.user.role === 'ADMIN'
     if (!isOwner && !isAdmin) return next(new AppError('forbidden', 403, 'FORBIDDEN'))
 
@@ -284,10 +285,31 @@ app.post('/comments', authenticateToken, async (req, res, next) => {
       VALUES ($1, $2, $3)
       RETURNING id, content, post_id, author_id, created_at
     `
-    const result = await db.query(q, [content, parsedPostId, req.user.userId])
+    const authorId = req.user && (req.user.id ?? req.user.userId)
+    const result = await db.query(q, [content, parsedPostId, authorId])
     const comment = result.rows[0]
     comment.author_name = req.user.name || null
     res.status(201).json({ comment })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// Get comments for a post (public)
+app.get('/posts/:id/comments', async (req, res, next) => {
+  try {
+    const postId = parseInt(req.params.id, 10)
+    if (Number.isNaN(postId)) return next(new AppError('invalid id', 400, 'INVALID_ID'))
+
+    const q = `
+      SELECT c.id, c.content, c.post_id, c.author_id, u.name AS author_name, c.created_at
+      FROM comments c
+      LEFT JOIN users u ON c.author_id = u.id
+      WHERE c.post_id = $1
+      ORDER BY c.created_at ASC
+    `
+    const result = await db.query(q, [postId])
+    res.json({ comments: result.rows })
   } catch (err) {
     next(err)
   }
@@ -303,7 +325,7 @@ app.delete('/comments/:id', authenticateToken, async (req, res, next) => {
     if (existing.rows.length === 0) return next(new AppError('comment not found', 404, 'COMMENT_NOT_FOUND'))
     const commentRow = existing.rows[0]
 
-    const isOwner = req.user.userId === commentRow.author_id
+    const isOwner = (req.user && (req.user.id ?? req.user.userId)) === commentRow.author_id
     const isAdmin = req.user.role === 'ADMIN'
     if (!isOwner && !isAdmin) return next(new AppError('forbidden', 403, 'FORBIDDEN'))
 
