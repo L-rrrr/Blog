@@ -39,3 +39,4 @@ export async function deleteComment(id: number | string) {
   const res = await api.delete(`/comments/${id}`)
   return res.data
 }
+export default { getPosts, getPost, getComments, addComment, createPost, updatePost, deletePost, deleteComment }

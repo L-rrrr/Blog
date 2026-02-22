@@ -1,4 +1,4 @@
-import { useContext } from 'react'
+import { useContext, useEffect } from 'react'
 import AuthForm from '../components/AuthForm'
 import { register } from '../services/auth'
 import { AuthContext } from '../context/AuthContext'
@@ -7,6 +7,12 @@ import { useNavigate } from 'react-router-dom'
 export default function RegisterPage() {
   const { setToken, setUser } = useContext(AuthContext)
   const navigate = useNavigate()
+
+  // if already logged in, redirect away from register page
+  const { token } = useContext(AuthContext)
+  useEffect(() => {
+    if (token) navigate('/', { replace: true })
+  }, [token, navigate])
 
   async function handleRegister(values: { name?: string; email: string; password: string }) {
     const data = await register({
@@ -23,7 +29,7 @@ export default function RegisterPage() {
       setUser(data.user)
     }
 
-    navigate('/')
+    navigate('/', { replace: true })
   }
 
   return (

@@ -1,4 +1,4 @@
-import { useContext } from 'react'
+import { useContext, useEffect } from 'react'
 import AuthForm from '../components/AuthForm'
 import { login } from '../services/auth'
 import { AuthContext } from '../context/AuthContext'
@@ -8,13 +8,18 @@ export default function LoginPage() {
   const { setToken, setUser } = useContext(AuthContext)
   const navigate = useNavigate()
 
+  const { token } = useContext(AuthContext)
+  useEffect(() => {
+    if (token) navigate('/', { replace: true })
+  }, [token, navigate])
+
   async function handleLogin(values: { name?: string; email: string; password: string }) {
     const data = await login({ email: values.email, password: values.password })
 
     if (data.token) setToken(data.token)
     if (data.user) setUser(data.user)
 
-    navigate('/')
+    navigate('/', { replace: true })
   }
 
   return (

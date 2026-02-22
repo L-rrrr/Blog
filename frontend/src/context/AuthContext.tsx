@@ -31,6 +31,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [token])
 
+  // If we have a token but no `user` in memory (e.g. after a reload), fetch
+  // the current user from the server so components can rely on `user.id`.
+  useEffect(() => {
+    let mounted = true
+    async function fetchMe() {
+      if (!token || user) return
+      try {
+        const res = await api.get('/auth/me')
+        if (!mounted) return
+        if (res?.data?.user) setUser(res.data.user)
+      } catch (err) {
+        // ignore; user remains null and app will behave as unauthenticated
+      }
+    }
+    fetchMe()
+    return () => {
+      mounted = false
+    }
+  }, [token])
+
   const setToken = (t: string | null) => {
     // update state
     setTokenState(t)

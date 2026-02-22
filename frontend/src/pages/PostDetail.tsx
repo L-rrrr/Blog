@@ -110,7 +110,14 @@ export default function PostDetail() {
 
   return (
     <article>
-      <h1>{post.title}</h1>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <h1 style={{ margin: 0 }}>{post.title}</h1>
+        {(user?.role === 'ADMIN' || String(user?.id) === String(post.author_id)) && (
+          <button onClick={handleDeletePost} style={{ marginLeft: 12 }}>
+            Delete Post
+          </button>
+        )}
+      </div>
       <div style={{ fontSize: 13, color: '#666' }}>
         by {post.author_name || 'Unknown'} — {new Date(post.created_at).toLocaleString()}
       </div>
@@ -130,7 +137,7 @@ export default function PostDetail() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ fontSize: 13, color: '#333' }}>{c.content}</div>
                     <div>
-                      {(user?.role === 'ADMIN' || user?.id === c.author_id || String(c.id).startsWith('temp-')) && (
+                      {(user?.role === 'ADMIN' || String(user?.id) === String(c.author_id) || String(c.id).startsWith('temp-')) && (
                         <button
                           onClick={() => handleDeleteComment(c.id)}
                           style={{ marginLeft: 8 }}

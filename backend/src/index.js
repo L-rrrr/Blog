@@ -124,7 +124,7 @@ const authLimiter = rateLimit({
 app.use('/auth', authLimiter)
 
 // Protected route: return current user (requires valid JWT)
-const { authenticateToken, authorizeRole } = require('./middleware/auth')
+const { authenticateToken} = require('./middleware/auth')
 app.get('/auth/me', authenticateToken, async (req, res, next) => {
   try {
     const uid = req.user && (req.user.id ?? req.user.userId)
@@ -198,8 +198,8 @@ app.post('/posts', authenticateToken, async (req, res, next) => {
     const { title, content } = req.body
     if (!title || typeof title !== 'string') return next(new AppError('title is required', 400, 'TITLE_REQUIRED'))
 
-    // Only admins may set published on creation; regular users create drafts
-    const published = req.body.published === true && req.user.role === 'ADMIN'
+    // New behavior: posts are published by default on creation
+    const published = true
     const authorId = req.user && (req.user.id ?? req.user.userId)
 
     const q = `
