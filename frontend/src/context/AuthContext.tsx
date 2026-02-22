@@ -1,0 +1,46 @@
+import { createContext, useEffect, useState, type ReactNode } from 'react'
+import api from '../services/api'
+
+type AuthContextType = {
+  token: string | null
+  user: any | null
+  setToken: (t: string | null) => void
+  logout: () => void
+  setUser: (u: any) => void
+}
+
+export const AuthContext = createContext<AuthContextType>({
+  token: null,
+  user: null,
+  setToken: () => {},
+  logout: () => {},
+  setUser: () => {},
+})
+
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [token, setTokenState] = useState<string | null>(localStorage.getItem('token'))
+  const [user, setUser] = useState<any>(null)
+
+  useEffect(() => {
+    if (token) {
+      localStorage.setItem('token', token)
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+    } else {
+      localStorage.removeItem('token')
+      delete api.defaults.headers.common['Authorization']
+    }
+  }, [token])
+
+  const setToken = (t: string | null) => setTokenState(t)
+
+  const logout = () => {
+    setTokenState(null)
+    setUser(null)
+  }
+
+  return (
+    <AuthContext.Provider value={{ token, user, setToken, logout, setUser }}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
