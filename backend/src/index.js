@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 4000
 app.use(express.json())
 
 // Tighten CORS: allow only configured origins (comma-separated) or localhost Vite default
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(',').map(s => s.trim())
+const allowedOrigins = (process.env.ALLOWED_ORIGINS).split(',').map(s => s.trim())
 app.use(cors({
   origin: function (origin, callback) {
     // allow non-browser (curl, server-side) requests with no origin
@@ -34,24 +34,26 @@ function isValidEmail(email) {
   return typeof email === 'string' && /@/.test(email)
 }
 
+const { AppError } = require('./errors')
+
 // Register endpoint
 app.post('/auth/register', async (req, res, next) => {
   try {
     const { email, password, name } = req.body
     if (!email || !password) {
-      return res.status(400).json({ error: 'email and password required' })
+      return next(new AppError('email and password required', 400, 'EMAIL_REQUIRED'))
     }
     if (!isValidEmail(email)) {
-      return res.status(400).json({ error: 'invalid email' })
+      return next(new AppError('invalid email', 400, 'INVALID_EMAIL'))
     }
     if (typeof password !== 'string' || password.length < 8) {
-      return res.status(400).json({ error: 'password must be at least 8 characters' })
+      return next(new AppError('password must be at least 8 characters', 400, 'WEAK_PASSWORD'))
     }
 
     // Check existing
     const exists = await db.query('SELECT id FROM users WHERE email = $1', [email])
     if (exists.rows.length > 0) {
-      return res.status(409).json({ error: 'email already registered' })
+      return next(new AppError('email already registered', 409, 'EMAIL_EXISTS'))
     }
 
     // Hash password
@@ -64,7 +66,14 @@ app.post('/auth/register', async (req, res, next) => {
     )
 
     const user = insert.rows[0]
-    res.status(201).json({ user })
+
+    // Issue JWT on registration so users are signed-in after creating account
+    const payload = { userId: user.id, role: user.role, email: user.email }
+    const secret = process.env.JWT_SECRET || 'please-change-this-secret'
+    const expiresIn = process.env.JWT_EXPIRES || '1h'
+    const token = jwt.sign(payload, secret, { expiresIn })
+
+    res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role } })
   } catch (err) {
     next(err)
   }
@@ -75,21 +84,21 @@ app.post('/auth/login', async (req, res, next) => {
   try {
     const { email, password } = req.body
     if (!email || !password) {
-      return res.status(400).json({ error: 'email and password required' })
+      return next(new AppError('email and password required', 400, 'EMAIL_REQUIRED'))
     }
     if (!isValidEmail(email)) {
-      return res.status(400).json({ error: 'invalid email' })
+      return next(new AppError('invalid email', 400, 'INVALID_EMAIL'))
     }
 
     const result = await db.query('SELECT id, email, name, password, role FROM users WHERE email = $1', [email])
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'email does not exist' })
+      return next(new AppError('email does not exist', 401, 'EMAIL_NOT_FOUND'))
     }
 
     const user = result.rows[0]
     const match = await bcrypt.compare(password, user.password)
     if (!match) {
-      return res.status(400).json({ error: 'incorrect password' })
+      return next(new AppError('incorrect password', 400, 'INCORRECT_PASSWORD'))
     }
 
     const payload = { userId: user.id, role: user.role, email: user.email }
@@ -119,7 +128,7 @@ const { authenticateToken, authorizeRole } = require('./middleware/auth')
 app.get('/auth/me', authenticateToken, async (req, res, next) => {
   try {
     const result = await db.query('SELECT id, email, name, role, created_at FROM users WHERE id = $1', [req.user.userId])
-    if (result.rows.length === 0) return res.status(404).json({ error: 'user not found' })
+    if (result.rows.length === 0) return next(new AppError('user not found', 404, 'USER_NOT_FOUND'))
     res.json({ user: result.rows[0] })
   } catch (err) {
     next(err)
@@ -148,7 +157,7 @@ app.get('/posts', async (req, res, next) => {
 app.get('/posts/:id', async (req, res, next) => {
   try {
     const id = parseInt(req.params.id, 10)
-    if (Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' })
+    if (Number.isNaN(id)) return next(new AppError('invalid id', 400, 'INVALID_ID'))
 
     const q = `
       SELECT p.id, p.title, p.content, p.published, p.author_id, u.name AS author_name, p.created_at
@@ -158,7 +167,7 @@ app.get('/posts/:id', async (req, res, next) => {
       LIMIT 1
     `
     const result = await db.query(q, [id])
-    if (result.rows.length === 0) return res.status(404).json({ error: 'post not found' })
+    if (result.rows.length === 0) return next(new AppError('post not found', 404, 'POST_NOT_FOUND'))
 
     const post = result.rows[0]
     if (post.published) return res.json({ post })
@@ -166,16 +175,16 @@ app.get('/posts/:id', async (req, res, next) => {
     // Unpublished: require token and check ownership/role
     const authHeader = req.headers.authorization
     const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
-    if (!token) return res.status(403).json({ error: 'post not published' })
+    if (!token) return next(new AppError('post not published', 403, 'POST_NOT_PUBLISHED'))
 
     try {
       const payload = jwt.verify(token, process.env.JWT_SECRET)
       const isOwner = payload.userId === post.author_id
       const isAdmin = payload.role === 'ADMIN'
       if (isOwner || isAdmin) return res.json({ post })
-      return res.status(403).json({ error: 'forbidden' })
+      return next(new AppError('forbidden', 403, 'FORBIDDEN'))
     } catch (err) {
-      return res.status(401).json({ error: 'invalid token' })
+      return next(new AppError('invalid token', 401, 'INVALID_TOKEN'))
     }
   } catch (err) {
     next(err)
@@ -186,7 +195,7 @@ app.get('/posts/:id', async (req, res, next) => {
 app.post('/posts', authenticateToken, async (req, res, next) => {
   try {
     const { title, content } = req.body
-    if (!title || typeof title !== 'string') return res.status(400).json({ error: 'title is required' })
+    if (!title || typeof title !== 'string') return next(new AppError('title is required', 400, 'TITLE_REQUIRED'))
 
     // Only admins may set published on creation; regular users create drafts
     const published = req.body.published === true && req.user.role === 'ADMIN'
@@ -210,16 +219,16 @@ app.post('/posts', authenticateToken, async (req, res, next) => {
 app.put('/posts/:id', authenticateToken, async (req, res, next) => {
   try {
     const id = parseInt(req.params.id, 10)
-    if (Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' })
+    if (Number.isNaN(id)) return next(new AppError('invalid id', 400, 'INVALID_ID'))
 
     // Check existing post
     const existing = await db.query('SELECT id, author_id, published, title, content FROM posts WHERE id = $1', [id])
-    if (existing.rows.length === 0) return res.status(404).json({ error: 'post not found' })
+    if (existing.rows.length === 0) return next(new AppError('post not found', 404, 'POST_NOT_FOUND'))
     const postRow = existing.rows[0]
 
     const isOwner = req.user.userId === postRow.author_id
     const isAdmin = req.user.role === 'ADMIN'
-    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'forbidden' })
+    if (!isOwner && !isAdmin) return next(new AppError('forbidden', 403, 'FORBIDDEN'))
 
     const { title, content } = req.body
     // Only admin can change published flag
@@ -241,15 +250,15 @@ app.put('/posts/:id', authenticateToken, async (req, res, next) => {
 app.delete('/posts/:id', authenticateToken, async (req, res, next) => {
   try {
     const id = parseInt(req.params.id, 10)
-    if (Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' })
+    if (Number.isNaN(id)) return next(new AppError('invalid id', 400, 'INVALID_ID'))
 
     const existing = await db.query('SELECT id, author_id FROM posts WHERE id = $1', [id])
-    if (existing.rows.length === 0) return res.status(404).json({ error: 'post not found' })
+    if (existing.rows.length === 0) return next(new AppError('post not found', 404, 'POST_NOT_FOUND'))
     const postRow = existing.rows[0]
 
     const isOwner = req.user.userId === postRow.author_id
     const isAdmin = req.user.role === 'ADMIN'
-    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'forbidden' })
+    if (!isOwner && !isAdmin) return next(new AppError('forbidden', 403, 'FORBIDDEN'))
 
     await db.query('DELETE FROM posts WHERE id = $1', [id])
     res.status(200).json({ message: 'post deleted' })
@@ -263,12 +272,12 @@ app.post('/comments', authenticateToken, async (req, res, next) => {
   try {
     const { postId, content } = req.body
     const parsedPostId = parseInt(postId, 10)
-    if (Number.isNaN(parsedPostId)) return res.status(400).json({ error: 'invalid postId' })
-    if (!content || typeof content !== 'string') return res.status(400).json({ error: 'content required' })
+    if (Number.isNaN(parsedPostId)) return next(new AppError('invalid postId', 400, 'INVALID_POSTID'))
+    if (!content || typeof content !== 'string') return next(new AppError('content required', 400, 'CONTENT_REQUIRED'))
 
     // Ensure post exists
     const postCheck = await db.query('SELECT id FROM posts WHERE id = $1', [parsedPostId])
-    if (postCheck.rows.length === 0) return res.status(404).json({ error: 'post not found' })
+    if (postCheck.rows.length === 0) return next(new AppError('post not found', 404, 'POST_NOT_FOUND'))
 
     const q = `
       INSERT INTO comments (content, post_id, author_id)
@@ -288,15 +297,15 @@ app.post('/comments', authenticateToken, async (req, res, next) => {
 app.delete('/comments/:id', authenticateToken, async (req, res, next) => {
   try {
     const id = parseInt(req.params.id, 10)
-    if (Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' })
+    if (Number.isNaN(id)) return next(new AppError('invalid id', 400, 'INVALID_ID'))
 
     const existing = await db.query('SELECT id, author_id FROM comments WHERE id = $1', [id])
-    if (existing.rows.length === 0) return res.status(404).json({ error: 'comment not found' })
+    if (existing.rows.length === 0) return next(new AppError('comment not found', 404, 'COMMENT_NOT_FOUND'))
     const commentRow = existing.rows[0]
 
     const isOwner = req.user.userId === commentRow.author_id
     const isAdmin = req.user.role === 'ADMIN'
-    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'forbidden' })
+    if (!isOwner && !isAdmin) return next(new AppError('forbidden', 403, 'FORBIDDEN'))
 
     await db.query('DELETE FROM comments WHERE id = $1', [id])
     res.status(200).json({ message: 'comment deleted' })
@@ -305,16 +314,9 @@ app.delete('/comments/:id', authenticateToken, async (req, res, next) => {
   }
 })
 
-// Basic error handler
-app.use((err, req, res, next) => {
-  console.error(err && err.stack ? err.stack : err)
-  // if it's a CORS error, return 403
-  if (err && err.message && err.message.startsWith('CORS:')) return res.status(403).json({ error: err.message })
-  if (process.env.NODE_ENV !== 'production') {
-    return res.status(500).json({ error: 'internal server error', details: err && (err.stack || err.message) })
-  }
-  res.status(500).json({ error: 'internal server error' })
-})
+// Centralized error handler
+const { errorHandler } = require('./errors')
+app.use(errorHandler(console))
 
 let server = null
 function start() {
