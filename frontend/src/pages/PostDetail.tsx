@@ -113,9 +113,14 @@ export default function PostDetail() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h1 style={{ margin: 0 }}>{post.title}</h1>
         {(user?.role === 'ADMIN' || String(user?.id) === String(post.author_id)) && (
-          <button onClick={handleDeletePost} style={{ marginLeft: 12 }}>
-            Delete Post
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => navigate(`/posts/${post.id}/edit`)} style={{ marginLeft: 12 }}>
+              Edit
+            </button>
+            <button onClick={handleDeletePost} style={{ marginLeft: 12 }}>
+              Delete Post
+            </button>
+          </div>
         )}
       </div>
       <div style={{ fontSize: 13, color: '#666' }}>
