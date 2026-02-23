@@ -5,10 +5,9 @@ import { AuthContext } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 
 export default function LoginPage() {
-  const { setToken, setUser } = useContext(AuthContext)
+  const { token, setToken, setUser } = useContext(AuthContext)
   const navigate = useNavigate()
-
-  const { token } = useContext(AuthContext)
+  
   useEffect(() => {
     if (token) navigate('/', { replace: true })
   }, [token, navigate])

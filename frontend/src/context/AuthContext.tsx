@@ -21,14 +21,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setTokenState] = useState<string | null>(localStorage.getItem('token'))
   const [user, setUser] = useState<any>(null)
 
-  useEffect(() => {
-    if (token) {
-      localStorage.setItem('token', token)
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`
-    } else {
-      localStorage.removeItem('token')
-      delete api.defaults.headers.common['Authorization']
+  function applyToken(t: string | null) {
+    try {
+      if (t) {
+        localStorage.setItem('token', t)
+        api.defaults.headers.common['Authorization'] = `Bearer ${t}`
+      } else {
+        localStorage.removeItem('token')
+        delete api.defaults.headers.common['Authorization']
+      }
+    } catch (err) {
+      // ignore storage errors
     }
+  }
+  useEffect(() => {
+    applyToken(token)
   }, [token])
 
   // If we have a token but no `user` in memory (e.g. after a reload), fetch
@@ -52,25 +59,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [token])
 
   const setToken = (t: string | null) => {
-    // update state
     setTokenState(t)
-    // also apply immediately to axios defaults and localStorage so requests made
-    // immediately after setToken have the Authorization header available
-    try {
-      if (t) {
-        localStorage.setItem('token', t)
-        api.defaults.headers.common['Authorization'] = `Bearer ${t}`
-      } else {
-        localStorage.removeItem('token')
-        delete api.defaults.headers.common['Authorization']
-      }
-    } catch (err) {
-      // ignore storage errors
-    }
+    applyToken(t)
   }
 
   const logout = () => {
-    setTokenState(null)
+    setToken(null)
     setUser(null)
   }
 
