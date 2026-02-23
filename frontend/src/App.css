@@ -1,42 +1,25 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-}
+/* App-level helpers and page layout */
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
+.app-wrap{min-height:100vh;display:flex;flex-direction:column}
+.site-main{flex:1 1 auto;padding:var(--space-4) 0}
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
+.hero{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:18px}
+.hero .intro{max-width:640px}
+.hero h1{margin-bottom:6px}
+.hero p{color:var(--muted);margin-bottom:0}
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
+.content-grid{display:grid;grid-template-columns:2fr 1fr;gap:22px}
+@media (max-width:920px){.content-grid{grid-template-columns:1fr}}
 
-.card {
-  padding: 2em;
-}
+.sidebar .card{padding:12px}
 
-.read-the-docs {
-  color: #888;
-}
+.list-empty{padding:28px;text-align:center;color:var(--muted)}
+
+.form-actions{display:flex;gap:12px;align-items:center}
+
+.footer{padding:20px 0;color:var(--muted);font-size:0.95rem;text-align:center}
+
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+.toast{position:fixed;right:18px;bottom:18px;background:var(--panel);padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);box-shadow:0 6px 20px rgba(2,6,23,0.5)}
+

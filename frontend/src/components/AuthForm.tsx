@@ -27,29 +27,29 @@ export default function AuthForm({ mode = 'register', onSubmit }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ maxWidth: 420 }}>
+    <form onSubmit={handleSubmit} className="card stack" style={{ maxWidth: 460 }}>
       {mode === 'register' && (
-        <div style={{ marginBottom: 8 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>Name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} required />
+        <div>
+          <label className="form-label" htmlFor="name-input">Name</label>
+          <input id="name-input" className="form-control" value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
       )}
 
-      <div style={{ marginBottom: 8 }}>
-        <label style={{ display: 'block', marginBottom: 4 }}>Email</label>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+      <div>
+        <label className="form-label" htmlFor="email-input">Email</label>
+        <input id="email-input" className="form-control" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </div>
 
-      <div style={{ marginBottom: 12 }}>
-        <label style={{ display: 'block', marginBottom: 4 }}>Password</label>
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+      <div>
+        <label className="form-label" htmlFor="password-input">Password</label>
+        <input id="password-input" className="form-control" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
       </div>
 
-      <button type="submit" disabled={loading}>
+      <button className="btn btn-primary" type="submit" disabled={loading}>
         {loading ? 'Please wait…' : mode === 'register' ? 'Create account' : 'Sign in'}
       </button>
 
-      {error && <div style={{ color: 'crimson', marginTop: 8 }}>{error}</div>}
+      {error && <div style={{ color: 'var(--danger)' }}>{error}</div>}
     </form>
   )
 }

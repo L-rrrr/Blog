@@ -64,7 +64,8 @@ export default function PostDetail() {
     setAdding(true)
 
     try {
-      const saved = await addComment(id!, optimistic.content)
+      if (!id) return
+      const saved = await addComment(id, optimistic.content)
       // replace temp with saved
       setComments((c) => c.map((it) => (it.id === tempId ? saved : it)))
     } catch (err: any) {
@@ -104,77 +105,83 @@ export default function PostDetail() {
     }
   }
 
-  if (loading) return <div>Loading post…</div>
-  if (error) return <div style={{ color: 'crimson' }}>{error}</div>
-  if (!post) return <div>Post not found.</div>
+  if (loading) return <div className="card muted">Loading post…</div>
+  if (error) return <div className="card" style={{ color: 'var(--danger)' }}>{error}</div>
+  if (!post) return <div className="card muted">Post not found.</div>
 
   return (
-    <article>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h1 style={{ margin: 0 }}>{post.title}</h1>
-        {(user?.role === 'ADMIN' || String(user?.id) === String(post.author_id)) && (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => navigate(`/posts/${post.id}/edit`)} style={{ marginLeft: 12 }}>
-              Edit
-            </button>
-            <button onClick={handleDeletePost} style={{ marginLeft: 12 }}>
-              Delete Post
-            </button>
-          </div>
-        )}
-      </div>
-      <div style={{ fontSize: 13, color: '#666' }}>
-        by {post.author_name || 'Unknown'} — {new Date(post.created_at).toLocaleString()}
-      </div>
-      <div style={{ marginTop: 12, whiteSpace: 'pre-wrap' }}>{post.content}</div>
+    <article className="stack" style={{ gap: 20 }}>
+      <section className="card stack" style={{ gap: 12 }}>
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <h1>{post.title}</h1>
+          {(user?.role === 'ADMIN' || String(user?.id) === String(post.author_id)) && (
+            <div className="form-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => navigate(`/posts/${post.id}/edit`)}>
+                Edit
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={handleDeletePost}>
+                Delete Post
+              </button>
+            </div>
+          )}
+        </div>
 
-      <section style={{ marginTop: 24 }}>
-        <h3>Comments</h3>
+        <div className="muted" style={{ fontSize: 13 }}>
+          by {post.author_name || 'Unknown'} • {new Date(post.created_at).toLocaleString()}
+        </div>
+
+        <div style={{ whiteSpace: 'pre-wrap' }}>{post.content}</div>
+      </section>
+
+      <section className="card stack" style={{ gap: 14 }}>
+        <h2>Comments</h2>
 
         {commentsLoading ? (
-          <div>Loading comments…</div>
+          <div className="muted">Loading comments…</div>
+        ) : comments.length === 0 ? (
+          <div className="list-empty">No comments yet.</div>
         ) : (
-          <div>
-            {comments.length === 0 && <div>No comments yet.</div>}
-            <ul style={{ paddingLeft: 0, listStyle: 'none' }}>
-              {comments.map((c) => (
-                <li key={c.id} style={{ padding: 8, borderBottom: '1px solid #eee' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: 13, color: '#333' }}>{c.content}</div>
-                    <div>
-                      {(user?.role === 'ADMIN' || String(user?.id) === String(c.author_id) || String(c.id).startsWith('temp-')) && (
-                        <button
-                          onClick={() => handleDeleteComment(c.id)}
-                          style={{ marginLeft: 8 }}
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 12, color: '#666' }}>
-                    {c.author_name || 'Unknown'} — {new Date(c.created_at).toLocaleString()}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <ul className="stack" style={{ gap: 10, listStyle: 'none', padding: 0, margin: 0 }}>
+            {comments.map((c) => (
+              <li key={c.id} className="post-card stack" style={{ gap: 8 }}>
+                <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ whiteSpace: 'pre-wrap', flex: 1 }}>{c.content}</div>
+                  {(user?.role === 'ADMIN' || String(user?.id) === String(c.author_id) || String(c.id).startsWith('temp-')) && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => handleDeleteComment(c.id)}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  {c.author_name || 'Unknown'} • {new Date(c.created_at).toLocaleString()}
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
 
-        <form onSubmit={handleAddComment} style={{ marginTop: 12 }}>
+        <form onSubmit={handleAddComment} className="stack" style={{ gap: 10 }}>
+          <label className="form-label" htmlFor="comment-content">
+            Add a comment
+          </label>
           <textarea
-            rows={3}
+            id="comment-content"
+            className="form-control"
+            rows={4}
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
             placeholder={token ? 'Write a comment…' : 'Sign in to write a comment'}
-            style={{ width: '100%', padding: 8 }}
             disabled={!token || adding}
           />
-          <div style={{ marginTop: 8 }}>
-            <button type="submit" disabled={!token || adding}>
-              {adding ? 'Posting…' : 'Post comment'}
+          <div className="form-actions">
+            <button className="btn btn-primary" type="submit" disabled={!token || adding}>
+              {adding ? 'Posting…' : 'Post Comment'}
             </button>
-            {commentError && <span style={{ color: 'crimson', marginLeft: 12 }}>{commentError}</span>}
+            {commentError && <span style={{ color: 'var(--danger)' }}>{commentError}</span>}
           </div>
         </form>
       </section>

@@ -22,9 +22,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ padding: 20 }}>
+    <section className="stack" style={{ gap: 14 }}>
       <h2>Sign in</h2>
       <AuthForm mode="login" onSubmit={handleLogin} />
-    </div>
+    </section>
   )
 }

@@ -33,9 +33,9 @@ export default function RegisterPage() {
   }
 
   return (
-    <div style={{ padding: 20 }}>
+    <section className="stack" style={{ gap: 14 }}>
       <h2>Create an account</h2>
       <AuthForm mode="register" onSubmit={handleRegister} />
-    </div>
+    </section>
   )
 }

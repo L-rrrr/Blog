@@ -11,7 +11,7 @@ export default function NewPost() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  if (!token) return <div>You must be signed in to create a post.</div>
+  if (!token) return <div className="card muted">You must be signed in to create a post.</div>
 
   async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement, SubmitEvent>) {
     e.preventDefault()
@@ -30,33 +30,39 @@ export default function NewPost() {
   }
 
   return (
-    <div>
+    <section className="stack" style={{ gap: 14 }}>
       <h2>Create Post</h2>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="card stack" style={{ gap: 12 }}>
         <div>
+          <label className="form-label" htmlFor="new-title">Title</label>
           <input
-            placeholder="Title"
+            id="new-title"
+            className="form-control"
+            placeholder="Enter post title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            style={{ width: '100%', padding: 8 }}
             disabled={loading}
           />
         </div>
-        <div style={{ marginTop: 8 }}>
+        <div>
+          <label className="form-label" htmlFor="new-content">Content</label>
           <textarea
+            id="new-content"
+            className="form-control"
             rows={10}
             placeholder="Write your post..."
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            style={{ width: '100%', padding: 8 }}
             disabled={loading}
           />
         </div>
-        <div style={{ marginTop: 8 }}>
-          <button type="submit" disabled={loading}>{loading ? 'Creating…' : 'Create Post'}</button>
-          {error && <span style={{ color: 'crimson', marginLeft: 12 }}>{error}</span>}
+        <div className="form-actions">
+          <button className="btn btn-primary" type="submit" disabled={loading}>
+            {loading ? 'Creating…' : 'Create Post'}
+          </button>
+          {error && <span style={{ color: 'var(--danger)' }}>{error}</span>}
         </div>
       </form>
-    </div>
+    </section>
   )
 }
