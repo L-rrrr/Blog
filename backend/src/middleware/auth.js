@@ -1,15 +1,15 @@
-const jwt = require('jsonwebtoken')
 const { AppError } = require('../errors')
+const { verifyToken, extractBearerToken } = require('../utils/jwt')
+const db = require('../db')
 
 async function authenticateToken(req, res, next) {
-  const authHeader = req.headers.authorization
-  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+  const token = extractBearerToken(req.headers.authorization)
   if (!token) return next(new AppError('token missing', 401, 'TOKEN_MISSING'))
   const secret = process.env.JWT_SECRET
   if (!secret) return next(new AppError('server misconfiguration', 500, 'SERVER_MISCONFIG'))
   try {
-    const payload = jwt.verify(token, secret)
-    const result = await require('../db').query('SELECT id, email, name, role FROM users WHERE id=$1', [payload.userId])
+    const payload = verifyToken(token)
+    const result = await db.query('SELECT id, email, name, role FROM users WHERE id=$1', [payload.userId])
     req.user = result.rows[0] || payload
     next()
   } catch (err) {
